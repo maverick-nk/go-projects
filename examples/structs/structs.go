@@ -13,6 +13,7 @@ func getEmployeeInstance(name string, salary int) *Employee{
 	return &emp
 }
 
+// Use of pointer receiver
 // Struct methods 
 func (emp *Employee) getName() string {
 	return emp.name
