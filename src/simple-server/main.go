@@ -7,13 +7,16 @@ A simple server to serve
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 )
 
@@ -56,15 +59,37 @@ func main() {
 	flag.Parse()
 
 	// HTTP Server
+	portConfig := ":" + strconv.Itoa(*portPtr)
+	server := &http.Server{
+		Addr: portConfig,
+	}
 	// Views
 	// 1. Static index.html
 	http.Handle("/", http.FileServer(http.Dir("./static")))
 	// 2. Get health
 	http.HandleFunc("/health", healthHandler)
 
-	// Start HTTP server at port
-	logger.Printf("Starting server at port: %d\n", *portPtr)
-	portConfig := ":" + strconv.Itoa(*portPtr)
-	logger.Println("Visit - http://localhost", portConfig)
-	log.Fatal(http.ListenAndServe(portConfig, nil))
+	go func() {
+		// Start HTTP server at port
+		logger.Printf("Starting server at port: %d\n", *portPtr)
+		logger.Println("Visit - http://localhost", portConfig)
+		if err := http.ListenAndServe(portConfig, nil); err != nil {
+			logger.Fatal(err)
+		}
+	}()
+
+	// Handle graceful termination
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-sigs
+	logger.Println("Signal received: ", sig)
+
+	shutdownContext, shutdownRelease := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownRelease()
+	if err := server.Shutdown(shutdownContext); err != nil {
+		logger.Fatal(err)
+	}
+
+	logger.Println("Gracefully shutting down")
+	logger.Println("Server shutdown! Exiting")
 }
